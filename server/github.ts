@@ -137,43 +137,36 @@ export async function pushToGitHub(repoName: string): Promise<{ success: boolean
     console.log(`Found ${files.length} files to upload`);
     
     let uploadedCount = 0;
-    const batchSize = 5;
     
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
-      
-      await Promise.all(batch.map(async (file) => {
+    for (const file of files) {
+      try {
+        let existingSha: string | undefined;
         try {
-          let existingSha: string | undefined;
-          try {
-            const { data: existingFile } = await octokit.repos.getContent({
-              owner,
-              repo: repoName,
-              path: file.path
-            });
-            if (!Array.isArray(existingFile) && existingFile.type === 'file') {
-              existingSha = existingFile.sha;
-            }
-          } catch (e) {
-          }
-          
-          await octokit.repos.createOrUpdateFileContents({
+          const { data: existingFile } = await octokit.repos.getContent({
             owner,
             repo: repoName,
-            path: file.path,
-            message: `Add/Update ${file.path}`,
-            content: Buffer.from(file.content).toString('base64'),
-            sha: existingSha
+            path: file.path
           });
-          
-          uploadedCount++;
-          console.log(`[${uploadedCount}/${files.length}] Uploaded: ${file.path}`);
-        } catch (error: any) {
-          console.error(`Failed to upload ${file.path}: ${error.message}`);
+          if (!Array.isArray(existingFile) && existingFile.type === 'file') {
+            existingSha = existingFile.sha;
+          }
+        } catch (e) {
         }
-      }));
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+        
+        await octokit.repos.createOrUpdateFileContents({
+          owner,
+          repo: repoName,
+          path: file.path,
+          message: `Add/Update ${file.path}`,
+          content: Buffer.from(file.content).toString('base64'),
+          sha: existingSha
+        });
+        
+        uploadedCount++;
+        console.log(`[${uploadedCount}/${files.length}] Uploaded: ${file.path}`);
+      } catch (error: any) {
+        console.error(`Failed to upload ${file.path}: ${error.message}`);
+      }
     }
     
     console.log(`Successfully pushed ${uploadedCount} files to GitHub!`);
